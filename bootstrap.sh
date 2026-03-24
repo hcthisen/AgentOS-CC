@@ -92,6 +92,27 @@ install_nodejs() {
   success "Node.js $(node --version) installed"
 }
 
+install_bun() {
+  if command -v bun &>/dev/null; then
+    info "Bun already installed: $(bun --version)"
+    return
+  fi
+  step "Installing Bun (required by Telegram plugin)..."
+  # Install as agentos user (goes to ~/.bun)
+  sudo -u "$AGENTOS_USER" bash -c 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1
+  # Add to PATH
+  local bashrc="/home/$AGENTOS_USER/.bashrc"
+  if ! grep -q '.bun/bin' "$bashrc" 2>/dev/null; then
+    echo 'export PATH="$HOME/.bun/bin:$PATH"' >> "$bashrc"
+    chown "$AGENTOS_USER":"$AGENTOS_USER" "$bashrc"
+  fi
+  if sudo -u "$AGENTOS_USER" bash -lc 'which bun' &>/dev/null; then
+    success "Bun installed"
+  else
+    warn "Bun install may have failed. Telegram plugin requires it."
+  fi
+}
+
 install_caddy() {
   if command -v caddy &>/dev/null; then
     info "Caddy already installed"
@@ -477,6 +498,7 @@ main() {
   create_user
   install_deps
   install_nodejs
+  install_bun
   install_caddy
   clone_repo
 
