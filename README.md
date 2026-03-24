@@ -42,9 +42,22 @@ Caddy auto-provisions HTTPS via Let's Encrypt.
 8. Installs Claude Code CLI
 9. Hands off to you for interactive Claude Code auth + Telegram setup
 
-### After install
+### After install — Telegram setup
 
-Once you authenticate Claude Code and set up the Telegram plugin, close SSH. The watchdog cron starts Claude in tmux within 5 minutes. Everything else runs autonomously.
+The bootstrap switches you to the `agentos` user and you run `claude`. After authenticating in the browser, set up Telegram **inside the Claude Code session**:
+
+```
+/install telegram@claude-plugins-official
+```
+
+Then configure with your bot token when prompted, and approve your Telegram user:
+
+```
+/telegram:configure
+/telegram:access
+```
+
+Once done, type `/exit` or `Ctrl+C` to leave Claude, then `exit` twice to close SSH. The watchdog starts Claude in tmux within 5 minutes. Everything runs autonomously from there.
 
 No API keys needed for the core system — summaries use `claude -p` (your subscription). External service keys (ElevenLabs, etc.) can be added via the dashboard secrets tab.
 
