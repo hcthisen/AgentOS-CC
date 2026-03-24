@@ -15,7 +15,6 @@ Or fully automated (no prompts):
 ```bash
 AGENTOS_DOMAIN=example.com \
 AGENTOS_DASHBOARD_PASSWORD=yourpassword \
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF... \
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/hcthisen/AgentOS-CC/main/bootstrap.sh)"
 ```
 
@@ -58,6 +57,8 @@ Then configure with your bot token when prompted, and approve your Telegram user
 ```
 
 Once done, type `/exit` or `Ctrl+C` to leave Claude, then `exit` twice to close SSH. The watchdog starts Claude in tmux within 5 minutes. Everything runs autonomously from there.
+
+Claude Code runs with full tool permissions (Bash, Read, Write, Edit, etc.) so it can operate autonomously via Telegram without prompting for approval. This is safe because it runs as the non-root `agentos` user.
 
 No API keys needed for the core system — summaries use `claude -p` (your subscription). External service keys (ElevenLabs, etc.) can be added via the dashboard secrets tab.
 
@@ -105,7 +106,6 @@ cd /opt/agentos && git pull && bash bootstrap.sh
 |----------|----------|-------------|
 | `AGENTOS_DOMAIN` | Yes* | Root domain pointed at the VPS |
 | `AGENTOS_DASHBOARD_PASSWORD` | Yes* | Dashboard login password |
-| `TELEGRAM_BOT_TOKEN` | No* | Telegram bot token (from @BotFather) |
 | `AGENTOS_DIR` | No | Install directory (default: `/opt/agentos`) |
 
 \* Prompted interactively if not set.

@@ -155,13 +155,6 @@ collect_config() {
     exit 1
   fi
 
-  # Telegram token (optional)
-  if [[ -z "${TELEGRAM_BOT_TOKEN:-}" ]]; then
-    read -rp "  Telegram bot token (Enter to skip): " TELEGRAM_BOT_TOKEN
-    TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
-  fi
-
-
   success "Configuration collected"
 }
 
@@ -212,7 +205,6 @@ JWT_SECRET=${JWT_SECRET}
 SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
 SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
 DASHBOARD_PASSWORD_HASH=${DASHBOARD_PASSWORD_HASH}
-TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
 EOF
   chmod 600 "$INSTALL_DIR/.env"
   success ".env written"
