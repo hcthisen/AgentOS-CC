@@ -403,16 +403,24 @@ install_crontab() {
 
 install_claude_code() {
   step "Installing Claude Code CLI..."
-  if sudo -u "$AGENTOS_USER" bash -c 'which claude' &>/dev/null; then
+
+  # Ensure ~/.local/bin is in PATH for the agentos user
+  local bashrc="/home/$AGENTOS_USER/.bashrc"
+  if ! grep -q '.local/bin' "$bashrc" 2>/dev/null; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$bashrc"
+    chown "$AGENTOS_USER":"$AGENTOS_USER" "$bashrc"
+  fi
+
+  if sudo -u "$AGENTOS_USER" bash -lc 'which claude' &>/dev/null; then
     info "Claude Code already installed"
     return
   fi
 
-  sudo -u "$AGENTOS_USER" bash -c 'curl -fsSL https://claude.ai/install.sh | sh' 2>&1 || {
+  sudo -u "$AGENTOS_USER" bash -c 'curl -fsSL https://claude.ai/install.sh | bash' 2>&1 || {
     warn "Auto-install failed. You may need to install Claude Code manually as '$AGENTOS_USER'."
   }
 
-  if sudo -u "$AGENTOS_USER" bash -c 'which claude' &>/dev/null; then
+  if sudo -u "$AGENTOS_USER" bash -lc 'which claude' &>/dev/null; then
     success "Claude Code installed"
   else
     warn "Claude Code not found in PATH. You may need to install it manually."

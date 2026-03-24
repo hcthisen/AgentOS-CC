@@ -5,7 +5,8 @@
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
 
 TMUX_SESSION="claude"
-CLAUDE_CMD="claude --continue --channels plugin:telegram@claude-plugins-official"
+CLAUDE_BIN="$HOME/.local/bin/claude"
+CLAUDE_CMD="$CLAUDE_BIN --continue --channels plugin:telegram@claude-plugins-official"
 
 # Check if tmux session exists
 if ! tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
