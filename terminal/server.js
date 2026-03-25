@@ -10,8 +10,9 @@ const SSH_USER = process.env.SSH_USER || 'agentos'
 const SSH_KEY_PATH = '/ssh-key/id_ed25519'
 const JWT_SECRET = process.env.JWT_SECRET || ''
 const DASHBOARD_PASSWORD_HASH = process.env.DASHBOARD_PASSWORD_HASH || ''
-const IDLE_TIMEOUT = 30 * 60 * 1000 // 30 minutes
-const PING_INTERVAL = 30 * 1000 // 30 seconds
+const IDLE_TIMEOUT = 60 * 60 * 1000 // 60 minutes
+const PING_INTERVAL = 45 * 1000 // 45 seconds
+const MAX_MISSED_PONGS = 3 // tolerate 3 missed pongs (background tabs throttle timers)
 
 function verifySession(cookieHeader) {
   if (!cookieHeader) return false
@@ -48,7 +49,7 @@ wss.on('connection', (ws, req) => {
   let sshStream = null
   let idleTimer = null
   let pingTimer = null
-  let alive = true
+  let missedPongs = 0
 
   const resetIdleTimer = () => {
     if (idleTimer) clearTimeout(idleTimer)
@@ -60,17 +61,18 @@ wss.on('connection', (ws, req) => {
   resetIdleTimer()
 
   // Heartbeat: detect dead connections (e.g., client navigated away without clean close)
+  // Tolerate multiple missed pongs since background tabs throttle WebSocket timers
   pingTimer = setInterval(() => {
-    if (!alive) {
-      console.log('Client unresponsive — terminating session')
+    missedPongs++
+    if (missedPongs > MAX_MISSED_PONGS) {
+      console.log(`Client unresponsive (${missedPongs} missed pongs) — terminating session`)
       ws.terminate()
       return
     }
-    alive = false
     ws.ping()
   }, PING_INTERVAL)
 
-  ws.on('pong', () => { alive = true })
+  ws.on('pong', () => { missedPongs = 0 })
 
   // Read SSH key
   let privateKey

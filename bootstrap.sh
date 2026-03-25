@@ -93,24 +93,29 @@ install_nodejs() {
 }
 
 install_bun() {
-  if sudo -u "$AGENTOS_USER" bash -lc 'which bun' &>/dev/null; then
-    info "Bun already installed: $(sudo -u "$AGENTOS_USER" bash -lc 'bun --version' 2>/dev/null)"
+  local bun_bin="/home/$AGENTOS_USER/.bun/bin/bun"
+  if [[ -x "$bun_bin" ]]; then
+    info "Bun already installed: $("$bun_bin" --version 2>/dev/null)"
     return
   fi
   step "Installing Bun (required by Telegram plugin)..."
   # Install as agentos user (goes to ~/.bun)
   # Use || true to prevent set -e from killing bootstrap if installer returns non-zero
   sudo -u "$AGENTOS_USER" bash -c 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1 || true
-  # Add to PATH
+  # Add to PATH in both .bashrc and .profile so login shells find it too
   local bashrc="/home/$AGENTOS_USER/.bashrc"
-  if ! grep -q '.bun/bin' "$bashrc" 2>/dev/null; then
-    echo 'export PATH="$HOME/.bun/bin:$PATH"' >> "$bashrc"
-    chown "$AGENTOS_USER":"$AGENTOS_USER" "$bashrc"
-  fi
-  if sudo -u "$AGENTOS_USER" bash -lc 'which bun' &>/dev/null; then
-    success "Bun installed"
+  local profile="/home/$AGENTOS_USER/.profile"
+  for rc in "$bashrc" "$profile"; do
+    if ! grep -q '.bun/bin' "$rc" 2>/dev/null; then
+      echo 'export BUN_INSTALL="$HOME/.bun"' >> "$rc"
+      echo 'export PATH="$HOME/.bun/bin:$PATH"' >> "$rc"
+      chown "$AGENTOS_USER":"$AGENTOS_USER" "$rc"
+    fi
+  done
+  if [[ -x "$bun_bin" ]]; then
+    success "Bun installed: $("$bun_bin" --version 2>/dev/null)"
   else
-    warn "Bun install may have failed. Telegram plugin requires it."
+    warn "Bun install failed. Telegram plugin requires it."
   fi
 }
 
@@ -272,13 +277,19 @@ start_supabase() {
 build_dashboard() {
   step "Building and starting dashboard..."
   cd "$INSTALL_DIR"
-  docker compose up -d --build dashboard 2>&1 | tail -5 || true
+  docker compose up -d --build dashboard terminal-ws 2>&1 | tail -5 || true
   sleep 3
 
   if curl -sf http://localhost:3000 >/dev/null 2>&1; then
     success "Dashboard ready on :3000"
   else
     warn "Dashboard may still be building (check: docker logs agentos-dashboard)"
+  fi
+
+  if ss -tlnp | grep -q ':3002 '; then
+    success "Terminal WebSocket ready on :3002"
+  else
+    warn "Terminal may still be starting (check: docker logs agentos-terminal)"
   fi
 }
 
@@ -393,6 +404,15 @@ EOF
     chown "$AGENTOS_USER":"$AGENTOS_USER" "$vps_claude"
   fi
 
+  # Skip all permission prompts — autonomous agent needs full access
+  cat > "$claude_dir/settings.local.json" << 'EOF'
+{
+  "permissions": {
+    "dangerouslySkipPermissions": true
+  }
+}
+EOF
+
   # Pre-configure Telegram bot token if provided
   if [[ -n "${AGENTOS_TELEGRAM_TOKEN:-}" ]]; then
     local tg_dir="$claude_dir/channels/telegram"
@@ -488,13 +508,14 @@ print_banner() {
     echo ""
     echo "  4. Install the Telegram plugin inside Claude Code:"
     echo "     /plugin install telegram@claude-plugins-official"
-    echo "  5. Type /exit to leave Claude Code"
-    echo "  6. Start Claude with Telegram enabled:"
-    echo "     claude --channels plugin:telegram@claude-plugins-official"
-    echo "  7. DM your bot on Telegram — it replies with a 6-char pairing code"
-    echo "  8. Pair:    /telegram:access pair <CODE>"
-    echo "  9. Lock:    /telegram:access policy allowlist"
-    echo "  10. Type /exit, then 'exit' to disconnect"
+    echo "  5. Configure Telegram (token is already saved):"
+    echo "     /telegram:configure"
+    echo "  6. DM your bot on Telegram — it replies with a 6-char pairing code"
+    echo "  7. Pair:    /telegram:access pair <CODE>"
+    echo "  8. Lock:    /telegram:access policy allowlist"
+    echo "  9. Type /exit to leave Claude Code"
+    echo "  10. Relaunch with Telegram channel enabled:"
+    echo "      claude --channels plugin:telegram@claude-plugins-official"
   else
     echo "  4. Run the guided Telegram setup:"
     echo "     bash /opt/agentos/scripts/telegram-setup.sh"
