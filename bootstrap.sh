@@ -93,13 +93,14 @@ install_nodejs() {
 }
 
 install_bun() {
-  if command -v bun &>/dev/null; then
-    info "Bun already installed: $(bun --version)"
+  if sudo -u "$AGENTOS_USER" bash -lc 'which bun' &>/dev/null; then
+    info "Bun already installed: $(sudo -u "$AGENTOS_USER" bash -lc 'bun --version' 2>/dev/null)"
     return
   fi
   step "Installing Bun (required by Telegram plugin)..."
   # Install as agentos user (goes to ~/.bun)
-  sudo -u "$AGENTOS_USER" bash -c 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1
+  # Use || true to prevent set -e from killing bootstrap if installer returns non-zero
+  sudo -u "$AGENTOS_USER" bash -c 'curl -fsSL https://bun.sh/install | bash' >/dev/null 2>&1 || true
   # Add to PATH
   local bashrc="/home/$AGENTOS_USER/.bashrc"
   if ! grep -q '.bun/bin' "$bashrc" 2>/dev/null; then
