@@ -15,7 +15,6 @@ Or fully automated (no prompts):
 ```bash
 AGENTOS_DOMAIN=example.com \
 AGENTOS_DASHBOARD_PASSWORD=yourpassword \
-AGENTOS_TELEGRAM_TOKEN=123456789:AAHfiqksKZ8... \
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/hcthisen/AgentOS-CC/main/bootstrap.sh)"
 ```
 
@@ -39,21 +38,12 @@ Caddy auto-provisions HTTPS via Let's Encrypt.
 5. Starts PostgreSQL + PostgREST + Dashboard + Terminal via Docker Compose
 6. Configures Caddy for `dashboard.domain.com` with auto TLS
 7. Deploys automation scripts and cron jobs
-8. Pre-configures Telegram bot token (if `AGENTOS_TELEGRAM_TOKEN` is set)
-9. Installs Claude Code CLI
-10. Hands off to you for interactive Claude Code auth + Telegram setup
+8. Installs Claude Code CLI
+9. Hands off to you for interactive Claude Code auth + Telegram setup
 
 ### After install — Telegram setup
 
 The bootstrap switches you to the `agentos` user. Run `claude` and complete browser authentication first.
-
-**Guided setup** (recommended):
-
-```bash
-bash /opt/agentos/scripts/telegram-setup.sh
-```
-
-This walks you through every step interactively. Or follow the manual steps below:
 
 #### 1. Create a bot with BotFather
 
@@ -80,7 +70,7 @@ Still inside Claude Code:
 /telegram:configure 123456789:AAHfiqksKZ8...
 ```
 
-This writes the token to `~/.claude/channels/telegram/.env`. You can also write that file by hand or pass `AGENTOS_TELEGRAM_TOKEN` during bootstrap to skip this step.
+This writes the token to `~/.claude/channels/telegram/.env`.
 
 Then type `/exit` to leave the session.
 
@@ -166,7 +156,6 @@ cd /opt/agentos && git pull && bash bootstrap.sh
 |----------|----------|-------------|
 | `AGENTOS_DOMAIN` | Yes* | Root domain pointed at the VPS |
 | `AGENTOS_DASHBOARD_PASSWORD` | Yes* | Dashboard login password |
-| `AGENTOS_TELEGRAM_TOKEN` | No | Bot token from BotFather — pre-configures Telegram (skips manual token step) |
 | `AGENTOS_DIR` | No | Install directory (default: `/opt/agentos`) |
 
 \* Prompted interactively if not set.
