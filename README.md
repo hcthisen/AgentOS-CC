@@ -131,22 +131,24 @@ VPS (domain.com + *.domain.com)
     └── daily-summary  (2h)       — session summaries via claude -p
 ```
 
-## Post-Install
+## Post-Install (optional)
+
+Everything runs automatically after setup — no extra steps needed. These commands are for maintenance and troubleshooting:
 
 ```bash
-# System status
+# Check that all services are running
 bash /opt/agentos/scripts/status.sh
 
-# View logs
+# Tail logs if something seems off
 tail -f /opt/agentos/logs/watchdog.log
 
-# Attach to Claude Code
+# Attach to the live Claude Code session (detach with Ctrl+B, D)
 tmux attach -t claude
 
-# Restart services
+# Restart services after config changes
 cd /opt/agentos && docker compose restart
 
-# Update
+# Pull latest updates and re-run the installer
 cd /opt/agentos && git pull && bash bootstrap.sh
 ```
 
