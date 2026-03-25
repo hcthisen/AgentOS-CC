@@ -25,6 +25,32 @@ At session start, consolidated topic knowledge and the last 10 session summaries
 - `bash /opt/agentos/scripts/memory.sh add-memory '<json>'` — store a structured memory
 - `bash /opt/agentos/scripts/memory.sh add-profile '<json>'` — store user profile data
 
+## Scheduled Tasks
+
+You can create persistent cron jobs that run prompts on a schedule and send results to Telegram. Tasks survive session restarts — they're stored in Supabase and executed via system cron.
+
+- `bash /opt/agentos/scripts/tasks.sh list` — list all tasks
+- `bash /opt/agentos/scripts/tasks.sh add '<json>'` — create a task
+- `bash /opt/agentos/scripts/tasks.sh remove <id>` — delete a task (first 8 chars of ID)
+- `bash /opt/agentos/scripts/tasks.sh pause <id>` — disable without deleting
+- `bash /opt/agentos/scripts/tasks.sh resume <id>` — re-enable a paused task
+- `bash /opt/agentos/scripts/tasks.sh run <id>` — run immediately
+- `bash /opt/agentos/scripts/tasks.sh sync` — regenerate cron entries from DB
+
+**Creating a task** — JSON fields:
+- `name` (required): display name
+- `cron_expr` (required): cron schedule, e.g. `"0 * * * *"` for hourly
+- `prompt` (required): the prompt to run via `claude -p`
+- `chat_id` (optional): Telegram chat ID to send results to
+- `model` (optional): model to use, default `opus`
+
+Example:
+```bash
+bash /opt/agentos/scripts/tasks.sh add '{"name":"Cat joke","cron_expr":"0 * * * *","prompt":"Tell me a short, funny cat joke","chat_id":"6599988942"}'
+```
+
+When a user asks you to schedule something, create a task with their chat_id so results go to their Telegram chat.
+
 ## Security Rules
 
 - Never share credentials, API keys, or passwords via Telegram or any output
