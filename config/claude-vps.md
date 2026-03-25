@@ -16,7 +16,7 @@ Write to `## Skills` for technical knowledge and `## User / Company` for people/
 
 ## Session Memory
 
-At session start, the last 30 session summaries are loaded automatically (lightweight, one line each). Use these commands to dig deeper:
+At session start, consolidated topic knowledge and the last 10 session summaries are loaded automatically. Topics are grouped from past sessions daily. Use these commands to dig deeper:
 
 - `bash /opt/agentos/scripts/memory.sh get <id>` — full detail for a session (use first 8 chars of ID)
 - `bash /opt/agentos/scripts/memory.sh search "<query>"` — search session summaries by keyword

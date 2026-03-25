@@ -15,6 +15,7 @@ Or fully automated (no prompts):
 ```bash
 AGENTOS_DOMAIN=example.com \
 AGENTOS_DASHBOARD_PASSWORD=yourpassword \
+AGENTOS_TELEGRAM_TOKEN=123456789:AAHfiqksKZ8... \
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/hcthisen/AgentOS-CC/main/bootstrap.sh)"
 ```
 
@@ -38,20 +39,84 @@ Caddy auto-provisions HTTPS via Let's Encrypt.
 5. Starts PostgreSQL + PostgREST + Dashboard + Terminal via Docker Compose
 6. Configures Caddy for `dashboard.domain.com` with auto TLS
 7. Deploys automation scripts and cron jobs
-8. Installs Claude Code CLI
-9. Hands off to you for interactive Claude Code auth + Telegram setup
+8. Pre-configures Telegram bot token (if `AGENTOS_TELEGRAM_TOKEN` is set)
+9. Installs Claude Code CLI
+10. Hands off to you for interactive Claude Code auth + Telegram setup
 
 ### After install — Telegram setup
 
-The bootstrap switches you to the `agentos` user. Run `claude` and complete browser authentication. Then install the Telegram plugin:
+The bootstrap switches you to the `agentos` user. Run `claude` and complete browser authentication first.
+
+**Guided setup** (recommended):
+
+```bash
+bash /opt/agentos/scripts/telegram-setup.sh
+```
+
+This walks you through every step interactively. Or follow the manual steps below:
+
+#### 1. Create a bot with BotFather
+
+Open Telegram and search for [@BotFather](https://t.me/BotFather). Send `/newbot` and follow the prompts:
+
+- **Name** — display name shown in chat headers (anything, can contain spaces)
+- **Username** — unique handle ending in `bot` (e.g. `my_assistant_bot`)
+
+BotFather replies with a token like `123456789:AAHfiqksKZ8...` — copy the entire thing including the leading number and colon.
+
+#### 2. Configure the token
+
+Inside a Claude Code session:
+
+```
+/telegram:configure 123456789:AAHfiqksKZ8...
+```
+
+This writes the token to `~/.claude/channels/telegram/.env`. You can also write that file by hand or pass `AGENTOS_TELEGRAM_TOKEN` during bootstrap to skip this step.
+
+#### 3. Install the plugin
+
+Still inside Claude Code:
 
 ```
 /plugin install telegram@claude-plugins-official
 ```
 
-Follow the prompts to configure your bot token and approve your Telegram user. Once done, type `/exit` to leave Claude, then `exit` twice to close SSH.
+Then type `/exit` to leave the session.
 
-The watchdog starts Claude in tmux within 5 minutes. Everything runs autonomously from there.
+#### 4. Relaunch with the Telegram channel
+
+```bash
+claude --channels plugin:telegram@claude-plugins-official
+```
+
+> You only need to do this once manually. The watchdog cron job already launches Claude with this flag, so after setup it happens automatically.
+
+#### 5. Pair your Telegram account
+
+With Claude Code running from step 4:
+
+1. Open Telegram and DM your bot
+2. The bot replies with a **6-character pairing code**
+3. In the Claude Code session, run:
+
+```
+/telegram:access pair <CODE>
+```
+
+Your next DM reaches the assistant.
+
+#### 6. Lock it down
+
+Switch to allowlist mode so only paired users can interact with the bot:
+
+```
+/telegram:access policy allowlist
+```
+
+Type `/exit`, then `exit` to disconnect from the VPS. The watchdog starts Claude in tmux within 5 minutes. Everything runs autonomously from there.
+
+---
 
 Claude Code runs with full tool permissions (Bash, Read, Write, Edit, etc.) so it can operate autonomously via Telegram without prompting for approval. This is safe because it runs as the non-root `agentos` user.
 
@@ -101,6 +166,7 @@ cd /opt/agentos && git pull && bash bootstrap.sh
 |----------|----------|-------------|
 | `AGENTOS_DOMAIN` | Yes* | Root domain pointed at the VPS |
 | `AGENTOS_DASHBOARD_PASSWORD` | Yes* | Dashboard login password |
+| `AGENTOS_TELEGRAM_TOKEN` | No | Bot token from BotFather — pre-configures Telegram (skips manual token step) |
 | `AGENTOS_DIR` | No | Install directory (default: `/opt/agentos`) |
 
 \* Prompted interactively if not set.

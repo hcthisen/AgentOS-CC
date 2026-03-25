@@ -35,11 +35,13 @@ Deployable in a single session via `bootstrap.sh` with guided prompts (or fully 
 | `security-sync.sh` | fail2ban/logins → Supabase | Cron every 10 min |
 | `server-health.sh` | System metrics → Supabase | Cron every 10 min |
 | `system-overview.sh` | System inventory (called by health) | Not scheduled directly |
+| `memory-consolidate.sh` | Topic consolidation of sessions | Cron daily 3 AM |
 
 ### Memory Model
 
 - **CLAUDE.md** (on deployed VPS) is the primary long-term memory — Claude writes skills, company info, and important discoveries here during sessions
-- **Session summaries** in Supabase are a searchable log — lightweight one-liners loaded at session start, full detail available via `memory.sh get <id>`
+- **Consolidated knowledge** in `cc_memory` table — topic-grouped summaries produced daily from session data, loaded at session start
+- **Session summaries** in Supabase are a searchable log — last 10 loaded at session start, full detail available via `memory.sh get <id>`
 - **SQL keyword search** for historical lookup — no vector embeddings needed
 
 ## Build & Deploy

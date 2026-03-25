@@ -392,6 +392,15 @@ EOF
     chown "$AGENTOS_USER":"$AGENTOS_USER" "$vps_claude"
   fi
 
+  # Pre-configure Telegram bot token if provided
+  if [[ -n "${AGENTOS_TELEGRAM_TOKEN:-}" ]]; then
+    local tg_dir="$claude_dir/channels/telegram"
+    mkdir -p "$tg_dir"
+    echo "TELEGRAM_BOT_TOKEN=${AGENTOS_TELEGRAM_TOKEN}" > "$tg_dir/.env"
+    chmod 600 "$tg_dir/.env"
+    success "Telegram bot token pre-configured"
+  fi
+
   chown -R "$AGENTOS_USER":"$AGENTOS_USER" "$claude_dir"
   success "Claude Code configured"
 }
@@ -408,10 +417,11 @@ install_crontab() {
 */10 * * * * /opt/agentos/scripts/security-sync.sh >> /opt/agentos/logs/security.log 2>&1
 */10 * * * * /opt/agentos/scripts/server-health.sh >> /opt/agentos/logs/health.log 2>&1
 */30 * * * * /opt/agentos/scripts/sync-sessions.sh >> /opt/agentos/logs/sync.log 2>&1
-0 */2 * * * /opt/agentos/scripts/daily-summary.sh >> /opt/agentos/logs/summary-\$(date +\\%Y-\\%m-\\%d).log 2>&1"
+0 */2 * * * /opt/agentos/scripts/daily-summary.sh >> /opt/agentos/logs/summary-\$(date +\\%Y-\\%m-\\%d).log 2>&1
+0 3 * * * /opt/agentos/scripts/memory-consolidate.sh >> /opt/agentos/logs/consolidation.log 2>&1"
 
   echo "$cron_content" | crontab -u "$AGENTOS_USER" -
-  success "6 cron jobs installed for $AGENTOS_USER"
+  success "7 cron jobs installed for $AGENTOS_USER"
 }
 
 install_claude_code() {
@@ -462,16 +472,36 @@ print_banner() {
   echo -e "  Dashboard: ${BLUE}https://dashboard.${domain}${NC}"
   echo -e "  Password:  (the one you entered)"
   echo ""
-  echo -e "  ${YELLOW}NEXT STEPS (interactive, cannot be automated):${NC}"
+  echo -e "  ${YELLOW}NEXT STEPS:${NC}"
   echo ""
   echo "  1. You will be switched to the '$AGENTOS_USER' user"
   echo "  2. Run: claude"
-  echo "  3. Complete browser authentication"
-  echo "  4. Install Telegram plugin:"
-  echo "     /plugin install telegram@claude-plugins-official"
-  echo "  5. Follow the prompts to configure bot token and approve your user"
-  echo "  6. Type '/exit', then 'exit' twice to close SSH"
-  echo "  7. The watchdog will start Claude Code in tmux within 5 minutes"
+  echo "  3. Complete browser authentication (follow the URL)"
+  echo ""
+  if [[ -n "${AGENTOS_TELEGRAM_TOKEN:-}" ]]; then
+    echo -e "  ${GREEN}Telegram token was pre-configured.${NC} Continue with:"
+    echo ""
+    echo "  4. Install the Telegram plugin inside Claude Code:"
+    echo "     /plugin install telegram@claude-plugins-official"
+    echo "  5. Type /exit to leave Claude Code"
+    echo "  6. Start Claude with Telegram enabled:"
+    echo "     claude --channels plugin:telegram@claude-plugins-official"
+    echo "  7. DM your bot on Telegram — it replies with a 6-char pairing code"
+    echo "  8. Pair:    /telegram:access pair <CODE>"
+    echo "  9. Lock:    /telegram:access policy allowlist"
+    echo "  10. Type /exit, then 'exit' to disconnect"
+  else
+    echo "  4. Run the guided Telegram setup:"
+    echo "     bash /opt/agentos/scripts/telegram-setup.sh"
+    echo ""
+    echo "     This walks you through creating a bot, configuring the"
+    echo "     token, installing the plugin, and pairing your account."
+    echo ""
+    echo "     Or set AGENTOS_TELEGRAM_TOKEN beforehand to skip prompts."
+  fi
+  echo ""
+  echo "  The watchdog will keep Claude Code running with Telegram"
+  echo "  in a tmux session. You can safely disconnect after setup."
   echo ""
   echo -e "  ${BLUE}Post-install: bash /opt/agentos/scripts/status.sh${NC}"
   echo ""

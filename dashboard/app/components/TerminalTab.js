@@ -6,10 +6,32 @@ export default function TerminalTab() {
   const wsRef = useRef(null)
   const xtermRef = useRef(null)
   const fitRef = useRef(null)
+  const resizeCleanupRef = useRef(null)
   const [status, setStatus] = useState('disconnected')
 
+  // Full teardown of terminal + websocket
+  const teardown = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.onclose = null // prevent onclose from firing during teardown
+      wsRef.current.onerror = null
+      wsRef.current.onmessage = null
+      wsRef.current.close()
+      wsRef.current = null
+    }
+    if (resizeCleanupRef.current) {
+      resizeCleanupRef.current()
+      resizeCleanupRef.current = null
+    }
+    if (xtermRef.current) {
+      xtermRef.current.dispose()
+      xtermRef.current = null
+    }
+    fitRef.current = null
+  }, [])
+
   const connect = useCallback(async () => {
-    if (wsRef.current) return
+    // Always tear down any existing session first
+    teardown()
 
     setStatus('connecting')
 
@@ -22,10 +44,8 @@ export default function TerminalTab() {
       Terminal = xtermModule.Terminal
       FitAddon = fitModule.FitAddon
       WebLinksAddon = linksModule.WebLinksAddon
-
-      // Import CSS
       await import('@xterm/xterm/css/xterm.css')
-    } catch (err) {
+    } catch {
       setStatus('error: xterm not installed')
       return
     }
@@ -72,7 +92,6 @@ export default function TerminalTab() {
 
     ws.onopen = () => {
       setStatus('connected')
-      // Send initial terminal size
       const dims = JSON.stringify({ cols: term.cols, rows: term.rows })
       ws.send(new Uint8Array([0, ...new TextEncoder().encode(dims)]))
     }
@@ -88,7 +107,7 @@ export default function TerminalTab() {
     ws.onclose = () => {
       setStatus('disconnected')
       wsRef.current = null
-      term.write('\r\n\x1b[31m[connection closed]\x1b[0m\r\n')
+      term.write('\r\n\x1b[31m[session ended — switch tabs or click reconnect]\x1b[0m\r\n')
     }
 
     ws.onerror = () => {
@@ -96,56 +115,44 @@ export default function TerminalTab() {
       wsRef.current = null
     }
 
-    // Send terminal input to WebSocket
+    // Terminal input → WebSocket
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(new TextEncoder().encode(data))
       }
     })
 
-    // Handle resize
+    // Resize handling
+    const sendResize = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        const dims = JSON.stringify({ cols: term.cols, rows: term.rows })
+        ws.send(new Uint8Array([0, ...new TextEncoder().encode(dims)]))
+      }
+    }
+
     const handleResize = () => {
       fit.fit()
-      if (ws.readyState === WebSocket.OPEN) {
-        const dims = JSON.stringify({ cols: term.cols, rows: term.rows })
-        ws.send(new Uint8Array([0, ...new TextEncoder().encode(dims)]))
-      }
+      sendResize()
     }
 
-    term.onResize(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        const dims = JSON.stringify({ cols: term.cols, rows: term.rows })
-        ws.send(new Uint8Array([0, ...new TextEncoder().encode(dims)]))
-      }
-    })
-
+    term.onResize(sendResize)
     window.addEventListener('resize', handleResize)
+    resizeCleanupRef.current = () => window.removeEventListener('resize', handleResize)
+  }, [teardown])
 
-    // Store cleanup reference
-    term._cleanup = () => {
-      window.removeEventListener('resize', handleResize)
-    }
-  }, [])
-
-  const disconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close()
-      wsRef.current = null
-    }
-    if (xtermRef.current) {
-      xtermRef.current._cleanup?.()
-      xtermRef.current.dispose()
-      xtermRef.current = null
-    }
-    fitRef.current = null
-    setStatus('disconnected')
-  }, [])
-
-  // Connect on mount, disconnect on unmount
+  // Connect on mount, full teardown on unmount
   useEffect(() => {
     connect()
-    return () => disconnect()
-  }, [connect, disconnect])
+
+    // Close session when navigating away from the page entirely
+    const handleBeforeUnload = () => teardown()
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      teardown()
+    }
+  }, [connect, teardown])
 
   const statusColor = {
     connected: 'var(--green)',
@@ -162,11 +169,11 @@ export default function TerminalTab() {
           {status}
         </div>
         <div>
-          {status === 'disconnected' && (
+          {(status === 'disconnected' || status === 'error') && (
             <button className="btn-sm" onClick={connect}>reconnect</button>
           )}
           {status === 'connected' && (
-            <button className="btn-sm" onClick={disconnect}>disconnect</button>
+            <button className="btn-sm" onClick={() => { teardown(); setStatus('disconnected') }}>disconnect</button>
           )}
         </div>
       </div>

@@ -88,8 +88,34 @@ cmd_load() {
   echo "=== MEMORY LOAD ==="
   echo ""
 
-  echo "## Recent Sessions (last 30)"
-  supabase_get "cc_sessions?select=id,session_date,summary,tags&summary=not.is.null&order=session_date.desc&limit=30" | python3 -c "
+  echo "## Consolidated Knowledge"
+  supabase_get "cc_memory?select=topic,content,tags,updated_at&type=eq.consolidated&order=updated_at.desc&limit=20" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    if not data:
+        print('  (no consolidated memories yet)')
+    for item in data:
+        topic = item.get('topic','?')
+        content = item.get('content','')
+        updated = (item.get('updated_at','') or '')[:10]
+        tags = ', '.join(item.get('tags',[]) or [])
+        tag_str = f' [{tags}]' if tags else ''
+        print(f'  **{topic}** (updated {updated}){tag_str}')
+        for line in content.split('. '):
+            line = line.strip()
+            if line:
+                suffix = '' if line.endswith('.') else '.'
+                print(f'    {line}{suffix}')
+        print()
+    print(f'({len(data)} topics)')
+except:
+    print('  (no data)')
+"
+  echo ""
+
+  echo "## Recent Sessions (last 10)"
+  supabase_get "cc_sessions?select=id,session_date,summary,tags&summary=not.is.null&order=session_date.desc&limit=10" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)

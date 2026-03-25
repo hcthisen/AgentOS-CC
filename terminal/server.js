@@ -11,6 +11,7 @@ const SSH_KEY_PATH = '/ssh-key/id_ed25519'
 const JWT_SECRET = process.env.JWT_SECRET || ''
 const DASHBOARD_PASSWORD_HASH = process.env.DASHBOARD_PASSWORD_HASH || ''
 const IDLE_TIMEOUT = 30 * 60 * 1000 // 30 minutes
+const PING_INTERVAL = 30 * 1000 // 30 seconds
 
 function verifySession(cookieHeader) {
   if (!cookieHeader) return false
@@ -46,6 +47,8 @@ wss.on('connection', (ws, req) => {
 
   let sshStream = null
   let idleTimer = null
+  let pingTimer = null
+  let alive = true
 
   const resetIdleTimer = () => {
     if (idleTimer) clearTimeout(idleTimer)
@@ -55,6 +58,19 @@ wss.on('connection', (ws, req) => {
     }, IDLE_TIMEOUT)
   }
   resetIdleTimer()
+
+  // Heartbeat: detect dead connections (e.g., client navigated away without clean close)
+  pingTimer = setInterval(() => {
+    if (!alive) {
+      console.log('Client unresponsive — terminating session')
+      ws.terminate()
+      return
+    }
+    alive = false
+    ws.ping()
+  }, PING_INTERVAL)
+
+  ws.on('pong', () => { alive = true })
 
   // Read SSH key
   let privateKey
@@ -137,6 +153,7 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     console.log(`[${new Date().toISOString()}] Terminal session closed`)
     if (idleTimer) clearTimeout(idleTimer)
+    if (pingTimer) clearInterval(pingTimer)
     ssh.end()
   })
 
