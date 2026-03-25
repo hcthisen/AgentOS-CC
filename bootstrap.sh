@@ -439,10 +439,11 @@ install_crontab() {
 */10 * * * * /opt/agentos/scripts/server-health.sh >> /opt/agentos/logs/health.log 2>&1
 */30 * * * * /opt/agentos/scripts/sync-sessions.sh >> /opt/agentos/logs/sync.log 2>&1
 0 */2 * * * /opt/agentos/scripts/daily-summary.sh >> /opt/agentos/logs/summary-\$(date +\\%Y-\\%m-\\%d).log 2>&1
-0 3 * * * /opt/agentos/scripts/memory-consolidate.sh >> /opt/agentos/logs/consolidation.log 2>&1"
+0 3 * * * /opt/agentos/scripts/memory-consolidate.sh >> /opt/agentos/logs/consolidation.log 2>&1
+*/5 * * * * /opt/agentos/scripts/tasks.sh sync >> /opt/agentos/logs/tasks-sync.log 2>&1"
 
   echo "$cron_content" | crontab -u "$AGENTOS_USER" -
-  success "7 cron jobs installed for $AGENTOS_USER"
+  success "8 cron jobs installed for $AGENTOS_USER"
 }
 
 install_claude_code() {

@@ -37,6 +37,8 @@ You can create persistent cron jobs that run prompts on a schedule and send resu
 - `bash /opt/agentos/scripts/tasks.sh pause <id>` — disable without deleting
 - `bash /opt/agentos/scripts/tasks.sh resume <id>` — re-enable a paused task
 - `bash /opt/agentos/scripts/tasks.sh run <id>` — run immediately
+- `bash /opt/agentos/scripts/tasks.sh history` — recent activity across all tasks
+- `bash /opt/agentos/scripts/tasks.sh history <id>` — history for a specific task
 - `bash /opt/agentos/scripts/tasks.sh sync` — regenerate cron entries from DB
 
 **Creating a task** — JSON fields:
@@ -52,6 +54,10 @@ bash /opt/agentos/scripts/tasks.sh add '{"name":"Cat joke","cron_expr":"0 * * * 
 ```
 
 When a user asks you to schedule something, create a task with their chat_id so results go to their Telegram chat.
+
+**Thread awareness:** Scheduled tasks run outside this session via `claude -p`. You cannot see what they sent to Telegram. When a user references something a task did (e.g., "I liked that joke" or "did the redesign happen?"), check `tasks.sh history` to see what was sent. Each task run is logged with its output, timestamp, and destination chat.
+
+**Task memory:** Each task automatically receives its last 10 outputs as context, with instructions not to repeat them. This prevents repetitive output from recurring tasks.
 
 ## Security Rules
 

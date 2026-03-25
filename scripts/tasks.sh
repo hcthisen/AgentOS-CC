@@ -74,9 +74,9 @@ sync_cron_entry() {
   local current_cron
   current_cron=$(crontab -l 2>/dev/null || true)
 
-  # Remove existing entry for this task
+  # Remove existing entry for this task (both comment and job line)
   local filtered
-  filtered=$(echo "$current_cron" | grep -v "AGENT_TASK:${task_id}" || true)
+  filtered=$(echo "$current_cron" | grep -v "AGENT_TASK:${task_id}" | grep -v "task-runner.sh ${task_id}" || true)
 
   if [[ "$enabled" == "true" && -n "$cron_expr" ]]; then
     # Add new entry
@@ -221,7 +221,7 @@ cmd_sync() {
   local current_cron
   current_cron=$(crontab -l 2>/dev/null || true)
   local filtered
-  filtered=$(echo "$current_cron" | grep -v "AGENT_TASK" || true)
+  filtered=$(echo "$current_cron" | grep -v "AGENT_TASK" | grep -v "task-runner.sh" || true)
 
   # Re-add enabled tasks
   echo "$tasks" | python3 -c "
@@ -252,6 +252,86 @@ ${additions}"
 
   echo "$filtered" | grep -v '^$' | crontab - 2>/dev/null
   echo "Cron entries synced."
+
+  # Catch-up: run any enabled tasks whose one-time schedule has passed but never ran
+  echo "$tasks" | python3 -c "
+import json, sys, datetime, subprocess
+
+data = json.load(sys.stdin)
+now = datetime.datetime.now(datetime.timezone.utc)
+
+for t in data:
+    if not t.get('enabled') or not t.get('cron_expr'):
+        continue
+    # Skip recurring tasks (only catch up one-time schedules)
+    # One-time cron has specific day-of-month and month fields (not * or */)
+    parts = t['cron_expr'].split()
+    if len(parts) != 5:
+        continue
+    minute, hour, dom, month, dow = parts
+    # If day-of-month and month are specific numbers, it's a one-time task
+    if not (dom.isdigit() and month.isdigit()):
+        continue
+    # Build the scheduled datetime
+    try:
+        sched = datetime.datetime(now.year, int(month), int(dom), int(hour), int(minute),
+                                  tzinfo=datetime.timezone.utc)
+    except ValueError:
+        continue
+    # If schedule has passed and task never ran, run it now
+    if sched <= now and t.get('last_run') is None:
+        tid = t['id']
+        print(f'Catch-up: running missed task {tid[:8]}')
+        subprocess.Popen(
+            ['bash', '/opt/agentos/scripts/task-runner.sh', tid],
+            stdout=open('/opt/agentos/logs/tasks.log', 'a'),
+            stderr=open('/opt/agentos/logs/tasks.log', 'a')
+        )
+" 2>&1
+}
+
+cmd_history() {
+  local task_id_prefix="${1:-}"
+
+  if [[ -z "$task_id_prefix" ]]; then
+    # Show recent history across all tasks
+    echo "## Recent Task Activity (last 20)"
+    supabase_get "cc_task_history?select=task_name,result,chat_id,created_at&order=created_at.desc&limit=20" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+if not data:
+    print('  (no history)')
+    sys.exit(0)
+for h in data:
+    ts = (h.get('created_at') or '')[:19]
+    name = h.get('task_name', '?')
+    result = (h.get('result') or '')[:120]
+    chat = h.get('chat_id', '')
+    dest = f' -> chat {chat}' if chat else ''
+    print(f'  [{ts}] {name}{dest}')
+    print(f'    {result}')
+    print()
+print(f'({len(data)} entries)')
+"
+  else
+    local full_id
+    full_id=$(resolve_task_id "$task_id_prefix") || { echo "Task not found: $task_id_prefix" >&2; exit 1; }
+
+    echo "## History for task ${full_id:0:8}"
+    supabase_get "cc_task_history?task_id=eq.${full_id}&select=result,created_at&order=created_at.desc&limit=10" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+if not data:
+    print('  (no history)')
+    sys.exit(0)
+for h in data:
+    ts = (h.get('created_at') or '')[:19]
+    result = (h.get('result') or '')[:200]
+    print(f'  [{ts}] {result}')
+    print()
+print(f'({len(data)} entries)')
+"
+  fi
 }
 
 # --- Main ---
@@ -264,18 +344,19 @@ Commands:
   list                      List all scheduled tasks
   add '<json>'              Create a new task
                             Required JSON fields: name, cron_expr, prompt
-                            Optional: chat_id, model (default: haiku), enabled (default: true)
+                            Optional: chat_id, model (default: opus), enabled (default: true)
   remove <id>               Delete a task (use first 8 chars of ID)
   pause <id>                Disable a task without deleting it
   resume <id>               Re-enable a paused task
   run <id>                  Run a task immediately (regardless of schedule)
+  history [id]              Show task execution history (all tasks, or specific task)
   sync                      Regenerate all cron entries from database
 
 Examples:
   tasks.sh add '{"name":"Cat jokes","cron_expr":"0 * * * *","prompt":"Tell me a funny cat joke","chat_id":"123456"}'
   tasks.sh list
-  tasks.sh pause a1b2c3d4
-  tasks.sh run a1b2c3d4
+  tasks.sh history
+  tasks.sh history a1b2c3d4
   tasks.sh remove a1b2c3d4
 EOF
   exit 1
@@ -288,6 +369,7 @@ case "${1:-}" in
   pause)   cmd_pause "${2:?Task ID required}" ;;
   resume)  cmd_resume "${2:?Task ID required}" ;;
   run)     cmd_run "${2:?Task ID required}" ;;
+  history) cmd_history "${2:-}" ;;
   sync)    cmd_sync ;;
   *)       usage ;;
 esac
