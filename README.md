@@ -64,23 +64,23 @@ Open Telegram and search for [@BotFather](https://t.me/BotFather). Send `/newbot
 
 BotFather replies with a token like `123456789:AAHfiqksKZ8...` — copy the entire thing including the leading number and colon.
 
-#### 2. Configure the token
+#### 2. Install the plugin
 
 Inside a Claude Code session:
+
+```
+/plugin install telegram@claude-plugins-official
+```
+
+#### 3. Configure the token
+
+Still inside Claude Code:
 
 ```
 /telegram:configure 123456789:AAHfiqksKZ8...
 ```
 
 This writes the token to `~/.claude/channels/telegram/.env`. You can also write that file by hand or pass `AGENTOS_TELEGRAM_TOKEN` during bootstrap to skip this step.
-
-#### 3. Install the plugin
-
-Still inside Claude Code:
-
-```
-/plugin install telegram@claude-plugins-official
-```
 
 Then type `/exit` to leave the session.
 

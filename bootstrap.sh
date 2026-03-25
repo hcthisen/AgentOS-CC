@@ -76,7 +76,7 @@ install_deps() {
 
   # System packages
   apt-get update -qq
-  apt-get install -y -qq tmux fail2ban python3 jq curl git >/dev/null 2>&1
+  apt-get install -y -qq tmux fail2ban python3 jq curl git unzip >/dev/null 2>&1
   systemctl enable fail2ban --now 2>/dev/null || true
   success "System packages installed"
 }
@@ -428,8 +428,11 @@ install_crontab() {
 install_claude_code() {
   step "Installing Claude Code CLI..."
 
-  # Ensure ~/.local/bin is in PATH for the agentos user
-  local bashrc="/home/$AGENTOS_USER/.bashrc"
+  local user_home="/home/$AGENTOS_USER"
+  local bashrc="$user_home/.bashrc"
+
+  # Ensure ~/.local/bin exists and is in PATH for the agentos user
+  sudo -u "$AGENTOS_USER" mkdir -p "$user_home/.local/bin"
   if ! grep -q '.local/bin' "$bashrc" 2>/dev/null; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$bashrc"
     chown "$AGENTOS_USER":"$AGENTOS_USER" "$bashrc"
@@ -440,7 +443,8 @@ install_claude_code() {
     return
   fi
 
-  sudo -u "$AGENTOS_USER" bash -c 'curl -fsSL https://claude.ai/install.sh | bash' 2>&1 || {
+  # Run installer with ~/.local/bin already in PATH so it doesn't warn
+  sudo -u "$AGENTOS_USER" bash -c 'export PATH="$HOME/.local/bin:$PATH"; curl -fsSL https://claude.ai/install.sh | bash' 2>&1 || {
     warn "Auto-install failed. You may need to install Claude Code manually as '$AGENTOS_USER'."
   }
 
