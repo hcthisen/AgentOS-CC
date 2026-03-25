@@ -29,6 +29,8 @@ At session start, consolidated topic knowledge and the last 10 session summaries
 
 You can create persistent cron jobs that run prompts on a schedule and send results to Telegram. Tasks survive session restarts — they're stored in Supabase and executed via system cron.
 
+**IMPORTANT: Always use `tasks.sh` to manage tasks — never insert directly into the Supabase `cc_scheduled_tasks` table.** The script installs the cron entry that actually triggers execution. Without it, the task exists in the DB but never runs.
+
 - `bash /opt/agentos/scripts/tasks.sh list` — list all tasks
 - `bash /opt/agentos/scripts/tasks.sh add '<json>'` — create a task
 - `bash /opt/agentos/scripts/tasks.sh remove <id>` — delete a task (first 8 chars of ID)
