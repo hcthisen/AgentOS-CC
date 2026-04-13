@@ -38,7 +38,7 @@ check "fail2ban running" "systemctl is-active fail2ban"
 # Claude Code
 AGENTOS_HOME="/home/agentos"
 if [[ -d "$AGENTOS_HOME" ]]; then
-  check "Claude Code installed" "sudo -u agentos which claude"
+  check "Claude Code installed" "sudo -u agentos bash -lc 'which claude'"
   check "tmux session 'claude' exists" "sudo -u agentos tmux has-session -t claude"
 else
   check "Claude Code installed" "which claude"

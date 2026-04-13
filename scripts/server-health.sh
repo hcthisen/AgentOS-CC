@@ -14,8 +14,8 @@ ENV_FILE="/opt/agentos/.env"
 
 env_get() {
   local key="$1"
-  [[ -f "$ENV_FILE" ]] || return 0
-  grep -E "^${key}=" "$ENV_FILE" | head -1 | cut -d= -f2-
+  [[ -r "$ENV_FILE" ]] || return 0
+  grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true
 }
 
 # --- Collect Metrics ---
