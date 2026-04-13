@@ -7,6 +7,7 @@ NC='\033[0m'
 
 ok()   { echo -e "  [${GREEN}OK${NC}]   $1"; }
 fail() { echo -e "  [${RED}FAIL${NC}] $1"; }
+note() { echo -e "  [INFO] $1"; }
 
 check() {
   if eval "$2" >/dev/null 2>&1; then ok "$1"; else fail "$1"; fi
@@ -17,11 +18,20 @@ echo "AgentOS-CC System Status"
 echo "========================"
 echo ""
 
+ENV_FILE="/opt/agentos/.env"
+DOMAIN=$(grep '^AGENTOS_DOMAIN=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)
+CADDY_ENABLED=$(grep '^AGENTOS_CADDY_ENABLED=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)
+DASHBOARD_URL=$(grep '^AGENTOS_DASHBOARD_URL=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)
+
 check "Docker running" "systemctl is-active docker"
 check "PostgreSQL container up" "docker ps | grep -q agentos-db"
 check "PostgREST responding on :3001" "curl -sf http://localhost:3001/ | grep -q paths"
 check "Dashboard responding on :3000" "curl -sf http://localhost:3000 | grep -q html"
-check "Caddy running" "systemctl is-active caddy"
+if [[ "$CADDY_ENABLED" == "true" ]]; then
+  check "Caddy running" "systemctl is-active caddy"
+else
+  note "Caddy disabled (domain setup skipped)"
+fi
 check "fail2ban running" "systemctl is-active fail2ban"
 
 # Claude Code
@@ -49,10 +59,11 @@ else
   fail "Credentials directory missing"
 fi
 
-# Domain check
-DOMAIN=$(grep AGENTOS_DOMAIN /opt/agentos/.env 2>/dev/null | cut -d= -f2)
-if [[ -n "$DOMAIN" ]]; then
+# Dashboard check
+if [[ "$CADDY_ENABLED" == "true" && -n "$DOMAIN" ]]; then
   check "Dashboard at https://dashboard.${DOMAIN}" "curl -sfk https://dashboard.${DOMAIN} | grep -q html"
+elif [[ -n "$DASHBOARD_URL" ]]; then
+  note "Dashboard URL: ${DASHBOARD_URL} (or http://<server-ip>:3000 on a VPS without a domain)"
 fi
 
 echo ""

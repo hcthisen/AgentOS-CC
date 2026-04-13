@@ -67,7 +67,7 @@ When a user asks you to schedule something, create a task with their chat_id so 
 
 ## System Paths
 
-- Dashboard: https://dashboard.DOMAIN/
+- Dashboard: DASHBOARD_URL
 - Supabase REST: http://localhost:3001 (internal only)
 - Session files: `~/.claude/projects/-root/*.jsonl`
 - Logs: `/opt/agentos/logs/`

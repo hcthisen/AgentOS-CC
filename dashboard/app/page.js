@@ -15,11 +15,15 @@ function Stat({ label, value, status }) {
 }
 
 function ServiceStatus({ name, status }) {
-  const isOk = status === 'active' || status === 'reachable'
+  const dotClass = status === 'active' || status === 'reachable'
+    ? 'green'
+    : status === 'disabled'
+      ? 'yellow'
+      : 'red'
   return (
     <span style={{ marginRight: '1rem' }}>
-      <span className={`dot ${isOk ? 'green' : 'red'}`}></span>
-      {name}
+      <span className={`dot ${dotClass}`}></span>
+      {name}: {status}
     </span>
   )
 }

@@ -8,6 +8,7 @@ export default function TerminalTab() {
   const fitRef = useRef(null)
   const resizeCleanupRef = useRef(null)
   const [status, setStatus] = useState('disconnected')
+  const [terminalEnabled, setTerminalEnabled] = useState(null)
 
   // Full teardown of terminal + websocket
   const teardown = useCallback(() => {
@@ -140,8 +141,32 @@ export default function TerminalTab() {
     resizeCleanupRef.current = () => window.removeEventListener('resize', handleResize)
   }, [teardown])
 
+  useEffect(() => {
+    let cancelled = false
+
+    fetch('/api/config')
+      .then((res) => res.json())
+      .then((config) => {
+        if (!cancelled) {
+          setTerminalEnabled(config.terminalEnabled)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTerminalEnabled(false)
+          setStatus('error')
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Connect on mount, full teardown on unmount
   useEffect(() => {
+    if (terminalEnabled !== true) return
+
     connect()
 
     // Close session when navigating away from the page entirely
@@ -152,7 +177,23 @@ export default function TerminalTab() {
       window.removeEventListener('beforeunload', handleBeforeUnload)
       teardown()
     }
-  }, [connect, teardown])
+  }, [connect, teardown, terminalEnabled])
+
+  if (terminalEnabled === null) {
+    return <div className="loading">loading terminal config...</div>
+  }
+
+  if (!terminalEnabled) {
+    return (
+      <div className="section">
+        <div className="section-header">Terminal unavailable</div>
+        <div className="section-body">
+          Domain setup was skipped, so Caddy and the web terminal are disabled in this install mode.
+          Re-run `bootstrap.sh` with domain setup enabled to expose the terminal through the dashboard.
+        </div>
+      </div>
+    )
+  }
 
   const statusColor = {
     connected: 'var(--green)',

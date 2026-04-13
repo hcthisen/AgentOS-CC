@@ -20,6 +20,27 @@ warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error()   { echo -e "${RED}[ERR]${NC}  $*" >&2; }
 step()    { echo -e "\n${GREEN}>>>${NC} $*"; }
 
+is_yes() {
+  case "${1,,}" in
+    y|yes|true|1) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_no() {
+  case "${1,,}" in
+    n|no|false|0) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+env_get() {
+  local key="$1"
+  local file="$2"
+  [[ -f "$file" ]] || return 0
+  grep -E "^${key}=" "$file" | head -1 | cut -d= -f2-
+}
+
 # ============================================================
 # Pre-flight checks
 # ============================================================
@@ -120,6 +141,10 @@ install_bun() {
 }
 
 install_caddy() {
+  if [[ "${AGENTOS_CADDY_ENABLED:-false}" != "true" ]]; then
+    info "Skipping Caddy install because domain setup was skipped"
+    return
+  fi
   if command -v caddy &>/dev/null; then
     info "Caddy already installed"
     return
@@ -162,15 +187,54 @@ clone_repo() {
 collect_config() {
   step "Collecting configuration..."
 
-  # Domain
-  if [[ -z "${AGENTOS_DOMAIN:-}" ]]; then
-    read -rp "  Enter your domain (e.g., example.com): " AGENTOS_DOMAIN
+  local add_domain=""
+
+  if [[ -n "${AGENTOS_ADD_DOMAIN:-}" ]]; then
+    add_domain="${AGENTOS_ADD_DOMAIN}"
+  elif [[ -n "${AGENTOS_DOMAIN:-}" ]]; then
+    add_domain="yes"
+  else
+    while true; do
+      read -rp "  Add domain? [y/n]: " add_domain
+      if is_yes "$add_domain" || is_no "$add_domain"; then
+        break
+      fi
+      warn "Please answer y or n."
+    done
   fi
-  if [[ -z "$AGENTOS_DOMAIN" ]]; then
-    error "Domain is required"
+
+  if is_yes "$add_domain"; then
+    AGENTOS_ADD_DOMAIN="true"
+    if [[ -z "${AGENTOS_DOMAIN:-}" ]]; then
+      read -rp "  Enter your domain (e.g., example.com): " AGENTOS_DOMAIN
+    fi
+    if [[ -z "$AGENTOS_DOMAIN" ]]; then
+      error "Domain is required when domain setup is enabled"
+      exit 1
+    fi
+    AGENTOS_CADDY_ENABLED="true"
+    AGENTOS_DASHBOARD_BIND_IP="127.0.0.1"
+    AGENTOS_DASHBOARD_URL="https://dashboard.${AGENTOS_DOMAIN}"
+    AGENTOS_SECURE_COOKIES="true"
+    AGENTOS_TERMINAL_ENABLED="true"
+    info "Domain mode enabled: ${AGENTOS_DASHBOARD_URL}"
+  elif is_no "$add_domain"; then
+    AGENTOS_ADD_DOMAIN="false"
+    if [[ -n "${AGENTOS_DOMAIN:-}" ]]; then
+      warn "Ignoring AGENTOS_DOMAIN because domain setup was skipped"
+    fi
+    AGENTOS_DOMAIN=""
+    AGENTOS_CADDY_ENABLED="false"
+    AGENTOS_DASHBOARD_BIND_IP="0.0.0.0"
+    AGENTOS_DASHBOARD_URL="http://localhost:3000"
+    AGENTOS_SECURE_COOKIES="false"
+    AGENTOS_TERMINAL_ENABLED="false"
+    info "Domain mode disabled"
+    info "Dashboard access: http://localhost:3000 (or http://<server-ip>:3000 on a VPS)"
+  else
+    error "Invalid AGENTOS_ADD_DOMAIN value: ${add_domain}"
     exit 1
   fi
-  info "Domain: $AGENTOS_DOMAIN"
 
   # Dashboard password
   if [[ -z "${AGENTOS_DASHBOARD_PASSWORD:-}" ]]; then
@@ -189,9 +253,13 @@ generate_secrets() {
   step "Generating secrets..."
 
   # Preserve existing secrets on re-run
-  if [[ -f "$INSTALL_DIR/.env" ]]; then
-    source "$INSTALL_DIR/.env"
+  local existing_env="$INSTALL_DIR/.env"
+  if [[ -f "$existing_env" ]]; then
     info "Preserving existing secrets from .env"
+    POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(env_get POSTGRES_PASSWORD "$existing_env")}"
+    JWT_SECRET="${JWT_SECRET:-$(env_get JWT_SECRET "$existing_env")}"
+    SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$(env_get SUPABASE_ANON_KEY "$existing_env")}"
+    SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-$(env_get SUPABASE_SERVICE_ROLE_KEY "$existing_env")}"
   fi
 
   POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(openssl rand -hex 24)}"
@@ -226,7 +294,13 @@ print(f'{header}.{payload}.{sig}')
 
 write_env() {
   cat > "$INSTALL_DIR/.env" << EOF
+AGENTOS_ADD_DOMAIN=${AGENTOS_ADD_DOMAIN}
+AGENTOS_CADDY_ENABLED=${AGENTOS_CADDY_ENABLED}
 AGENTOS_DOMAIN=${AGENTOS_DOMAIN}
+AGENTOS_DASHBOARD_URL=${AGENTOS_DASHBOARD_URL}
+AGENTOS_DASHBOARD_BIND_IP=${AGENTOS_DASHBOARD_BIND_IP}
+AGENTOS_SECURE_COOKIES=${AGENTOS_SECURE_COOKIES}
+AGENTOS_TERMINAL_ENABLED=${AGENTOS_TERMINAL_ENABLED}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
@@ -277,7 +351,16 @@ start_supabase() {
 build_dashboard() {
   step "Building and starting dashboard..."
   cd "$INSTALL_DIR"
-  docker compose up -d --build dashboard terminal-ws 2>&1 | tail -5 || true
+  local services=("dashboard")
+
+  if [[ "${AGENTOS_TERMINAL_ENABLED:-false}" == "true" ]]; then
+    services+=("terminal-ws")
+  else
+    docker compose stop terminal-ws >/dev/null 2>&1 || true
+    docker compose rm -sf terminal-ws >/dev/null 2>&1 || true
+  fi
+
+  docker compose up -d --build "${services[@]}" 2>&1 | tail -5 || true
   sleep 3
 
   if curl -sf http://localhost:3000 >/dev/null 2>&1; then
@@ -286,14 +369,23 @@ build_dashboard() {
     warn "Dashboard may still be building (check: docker logs agentos-dashboard)"
   fi
 
-  if ss -tlnp | grep -q ':3002 '; then
-    success "Terminal WebSocket ready on :3002"
+  if [[ "${AGENTOS_TERMINAL_ENABLED:-false}" == "true" ]]; then
+    if ss -tlnp | grep -q ':3002 '; then
+      success "Terminal WebSocket ready on :3002"
+    else
+      warn "Terminal may still be starting (check: docker logs agentos-terminal)"
+    fi
   else
-    warn "Terminal may still be starting (check: docker logs agentos-terminal)"
+    info "Web terminal disabled because domain setup was skipped"
   fi
 }
 
 configure_caddy() {
+  if [[ "${AGENTOS_CADDY_ENABLED:-false}" != "true" ]]; then
+    warn "Skipping Caddy configuration because domain setup was skipped"
+    return
+  fi
+
   step "Configuring Caddy..."
 
   # Write Caddyfile with actual domain + terminal WebSocket
@@ -307,6 +399,21 @@ EOF
   systemctl enable caddy --now 2>/dev/null || true
   systemctl reload caddy 2>/dev/null || caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
   success "Caddy configured for dashboard.${AGENTOS_DOMAIN}"
+}
+
+disable_caddy() {
+  if [[ "${AGENTOS_CADDY_ENABLED:-false}" == "true" ]]; then
+    return
+  fi
+
+  if ! command -v caddy &>/dev/null; then
+    info "Caddy not installed (domain setup skipped)"
+    return
+  fi
+
+  step "Disabling Caddy..."
+  systemctl disable --now caddy 2>/dev/null || true
+  success "Caddy disabled because domain setup was skipped"
 }
 
 # ============================================================
@@ -323,6 +430,11 @@ deploy_scripts() {
 }
 
 setup_terminal_ssh() {
+  if [[ "${AGENTOS_TERMINAL_ENABLED:-false}" != "true" ]]; then
+    info "Skipping web terminal SSH setup because domain setup was skipped"
+    return
+  fi
+
   step "Setting up SSH keypair for web terminal..."
   local key_path="$INSTALL_DIR/terminal-ssh-key"
   if [[ -f "$key_path" ]]; then
@@ -399,8 +511,7 @@ EOF
   if [[ -f "$INSTALL_DIR/config/claude-vps.md" ]]; then
     local vps_claude="/home/$AGENTOS_USER/CLAUDE.md"
     cp "$INSTALL_DIR/config/claude-vps.md" "$vps_claude"
-    # Replace DOMAIN placeholder
-    sed -i "s/DOMAIN/${AGENTOS_DOMAIN}/g" "$vps_claude"
+    sed -i "s|DASHBOARD_URL|${AGENTOS_DASHBOARD_URL}|g" "$vps_claude"
     chown "$AGENTOS_USER":"$AGENTOS_USER" "$vps_claude"
   fi
 
@@ -489,13 +600,19 @@ run_initial_sync() {
 }
 
 print_banner() {
-  local domain="$AGENTOS_DOMAIN"
   echo ""
   echo -e "${GREEN}============================================${NC}"
   echo -e "${GREEN}  AgentOS-CC Installation Complete!${NC}"
   echo -e "${GREEN}============================================${NC}"
   echo ""
-  echo -e "  Dashboard: ${BLUE}https://dashboard.${domain}${NC}"
+  if [[ "${AGENTOS_CADDY_ENABLED:-false}" == "true" ]]; then
+    echo -e "  Dashboard: ${BLUE}${AGENTOS_DASHBOARD_URL}${NC}"
+  else
+    echo -e "  Dashboard (local): ${BLUE}http://localhost:3000${NC}"
+    echo -e "  Dashboard (VPS):   ${BLUE}http://<server-ip>:3000${NC}"
+    echo -e "  Caddy:             ${YELLOW}disabled (domain setup skipped)${NC}"
+    echo -e "  Web terminal:      ${YELLOW}disabled without domain/Caddy routing${NC}"
+  fi
   echo -e "  Password:  (the one you entered)"
   echo ""
   echo -e "  ${YELLOW}NEXT STEPS:${NC}"
@@ -556,22 +673,26 @@ main() {
   install_deps
   install_nodejs
   install_bun
-  install_caddy
   clone_repo
 
   # Phase 2: Config
   collect_config
+  install_caddy
   generate_secrets
   write_env
 
   # Phase 3: Services
+  setup_terminal_ssh
   start_supabase
   build_dashboard
-  configure_caddy
+  if [[ "${AGENTOS_CADDY_ENABLED:-false}" == "true" ]]; then
+    configure_caddy
+  else
+    disable_caddy
+  fi
 
   # Phase 4: Claude Code
   deploy_scripts
-  setup_terminal_ssh
   write_credentials
   configure_claude
   install_crontab

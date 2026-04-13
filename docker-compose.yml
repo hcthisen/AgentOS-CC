@@ -40,7 +40,7 @@ services:
     container_name: agentos-dashboard
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${AGENTOS_DASHBOARD_BIND_IP:-127.0.0.1}:3000:3000"
     depends_on:
       - supabase-rest
     environment:
@@ -49,6 +49,8 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       DASHBOARD_PASSWORD_HASH: ${DASHBOARD_PASSWORD_HASH}
       JWT_SECRET: ${JWT_SECRET}
+      AGENTOS_SECURE_COOKIES: ${AGENTOS_SECURE_COOKIES:-true}
+      AGENTOS_TERMINAL_ENABLED: ${AGENTOS_TERMINAL_ENABLED:-true}
 
   terminal-ws:
     build: ./terminal

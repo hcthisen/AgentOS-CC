@@ -10,6 +10,13 @@ if [[ -f "$CRED_FILE" ]]; then source "$CRED_FILE"; else echo "$(date) ERROR: $C
 SUPABASE_URL="${SUPABASE_URL:-http://localhost:3001}"
 SUPABASE_KEY="${SUPABASE_SERVICE_ROLE_KEY}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="/opt/agentos/.env"
+
+env_get() {
+  local key="$1"
+  [[ -f "$ENV_FILE" ]] || return 0
+  grep -E "^${key}=" "$ENV_FILE" | head -1 | cut -d= -f2-
+}
 
 # --- Collect Metrics ---
 
@@ -47,7 +54,12 @@ print(json.dumps(containers))
 " 2>/dev/null || echo "[]")
 
 # Services
-svc_caddy=$(systemctl is-active caddy 2>/dev/null | head -1 || echo "inactive")
+caddy_enabled=$(env_get AGENTOS_CADDY_ENABLED)
+if [[ "$caddy_enabled" == "false" ]]; then
+  svc_caddy="disabled"
+else
+  svc_caddy=$(systemctl is-active caddy 2>/dev/null | head -1 || echo "inactive")
+fi
 svc_fail2ban=$(systemctl is-active fail2ban 2>/dev/null | head -1 || echo "inactive")
 svc_docker=$(systemctl is-active docker 2>/dev/null | head -1 || echo "inactive")
 svc_ssh=$(systemctl is-active ssh 2>/dev/null | head -1 || echo "inactive")

@@ -19,10 +19,11 @@ export async function POST(request) {
     .update(hash + (process.env.JWT_SECRET || ''))
     .digest('hex')
 
+  const secureCookies = (process.env.AGENTOS_SECURE_COOKIES ?? (process.env.NODE_ENV === 'production' ? 'true' : 'false')) === 'true'
   const response = NextResponse.json({ ok: true })
   response.cookies.set('dashboard_session', sessionToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: secureCookies,
     sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60, // 7 days
     path: '/',

@@ -1,8 +1,16 @@
 # AgentOS-CC
 
-A self-hosted system that gives Claude Code persistent memory, security monitoring, and always-on Telegram access — all on a single VPS.
+A self-hosted system that gives Claude Code persistent memory, security monitoring, and always-on Telegram access on a single machine or VPS.
 
 ## Install
+
+The bootstrap command downloads `bootstrap.sh` from GitHub `main` every time. It does not use uncommitted local changes from your checkout.
+
+To test local edits, run `bash ./bootstrap.sh` from the repo itself.
+
+### Mode 1: Domain-enabled VPS
+
+Use this when you have a real domain pointed at the server and you want the current Caddy + HTTPS setup.
 
 SSH into a fresh Ubuntu/Debian VPS as root and run:
 
@@ -10,15 +18,14 @@ SSH into a fresh Ubuntu/Debian VPS as root and run:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/hcthisen/AgentOS-CC/main/bootstrap.sh)"
 ```
 
-Or fully automated (no prompts):
+Or fully automated:
 
 ```bash
+AGENTOS_ADD_DOMAIN=true \
 AGENTOS_DOMAIN=example.com \
 AGENTOS_DASHBOARD_PASSWORD=yourpassword \
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/hcthisen/AgentOS-CC/main/bootstrap.sh)"
 ```
-
-### DNS
 
 Before installing, point your domain at the VPS:
 
@@ -29,14 +36,41 @@ Before installing, point your domain at the VPS:
 
 Caddy auto-provisions HTTPS via Let's Encrypt.
 
+### Mode 2: No-domain install
+
+Use this for a local machine or a simple VPS test where you want the dashboard directly on port `3000`.
+
+Interactive install:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/hcthisen/AgentOS-CC/main/bootstrap.sh)"
+```
+
+Choose `Add domain? [y/n]` and answer `n`.
+
+Non-interactive install:
+
+```bash
+AGENTOS_ADD_DOMAIN=false \
+AGENTOS_DASHBOARD_PASSWORD=yourpassword \
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/hcthisen/AgentOS-CC/main/bootstrap.sh)"
+```
+
+No-domain access patterns:
+
+- Local machine: `http://localhost:3000`
+- VPS without a domain: `http://<server-ip>:3000`
+
+In no-domain mode, Caddy is intentionally skipped and the web terminal tab is disabled because it depends on the Caddy websocket route.
+
 ### What the installer does
 
 1. Creates `agentos` user with passwordless sudo
-2. Installs Docker, Node.js, Caddy, tmux, fail2ban
-3. Collects config (domain, dashboard password) or reads env vars
+2. Installs Docker, Node.js, tmux, fail2ban, and Bun
+3. Collects config (`Add domain`, optional domain, dashboard password) or reads env vars
 4. Generates all secrets (Postgres password, JWT, Supabase keys)
-5. Starts PostgreSQL + PostgREST + Dashboard + Terminal via Docker Compose
-6. Configures Caddy for `dashboard.domain.com` with auto TLS
+5. Starts PostgreSQL + PostgREST + Dashboard via Docker Compose
+6. Starts the web terminal and configures Caddy only when domain mode is enabled
 7. Deploys automation scripts and cron jobs
 8. Installs Claude Code CLI
 9. Hands off to you for interactive Claude Code auth + Telegram setup
@@ -114,6 +148,8 @@ No API keys needed for the core system — summaries use `claude -p` (your subsc
 
 ## Architecture
 
+Typical domain-enabled VPS layout:
+
 ```
 VPS (domain.com + *.domain.com)
 ├── Claude Code CLI (tmux + Telegram plugin)
@@ -156,7 +192,8 @@ cd /opt/agentos && git pull && bash bootstrap.sh
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `AGENTOS_DOMAIN` | Yes* | Root domain pointed at the VPS |
+| `AGENTOS_ADD_DOMAIN` | No | `true` to enable domain/Caddy/HTTPS, `false` to skip them |
+| `AGENTOS_DOMAIN` | Required when `AGENTOS_ADD_DOMAIN=true` | Root domain pointed at the VPS |
 | `AGENTOS_DASHBOARD_PASSWORD` | Yes* | Dashboard login password |
 | `AGENTOS_DIR` | No | Install directory (default: `/opt/agentos`) |
 
@@ -164,8 +201,8 @@ cd /opt/agentos && git pull && bash bootstrap.sh
 
 ## Requirements
 
-- Ubuntu 22.04+ or Debian 12+ VPS (2GB+ RAM recommended)
-- Domain with A + wildcard A records pointed at the VPS
+- Ubuntu 22.04+ or Debian 12+ machine (2GB+ RAM recommended)
+- For domain mode: a domain with A + wildcard A records pointed at the VPS
 - Claude Code subscription (for CLI authentication)
 
 ## License
