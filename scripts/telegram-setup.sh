@@ -141,6 +141,9 @@ echo ""
 
 claude --channels "$CHANNEL_FLAG" || true
 
+# Seed the always-on tmux session immediately instead of waiting for cron.
+bash /opt/agentos/scripts/watchdog.sh >/dev/null 2>&1 || true
+
 echo ""
 echo -e "${GREEN}${BOLD}Telegram setup complete!${NC}"
 echo ""

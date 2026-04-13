@@ -61,11 +61,12 @@ else
   svc_caddy=$(systemctl is-active caddy 2>/dev/null | head -1 || echo "inactive")
 fi
 svc_fail2ban=$(systemctl is-active fail2ban 2>/dev/null | head -1 || echo "inactive")
+svc_cron=$(systemctl is-active cron 2>/dev/null | head -1 || echo "inactive")
 svc_docker=$(systemctl is-active docker 2>/dev/null | head -1 || echo "inactive")
 svc_ssh=$(systemctl is-active ssh 2>/dev/null | head -1 || echo "inactive")
 svc_supabase=$(curl -sf http://localhost:3001/ >/dev/null 2>&1 && echo "reachable" || echo "unreachable")
 
-SERVICES=$(python3 -c "import json; print(json.dumps({'caddy':'${svc_caddy}','fail2ban':'${svc_fail2ban}','docker':'${svc_docker}','ssh':'${svc_ssh}','supabase':'${svc_supabase}'}))" 2>/dev/null || echo '{}')
+SERVICES=$(python3 -c "import json; print(json.dumps({'caddy':'${svc_caddy}','fail2ban':'${svc_fail2ban}','cron':'${svc_cron}','docker':'${svc_docker}','ssh':'${svc_ssh}','supabase':'${svc_supabase}'}))" 2>/dev/null || echo '{}')
 
 # Claude Code status
 CLAUDE_STATUS=$(python3 -c "

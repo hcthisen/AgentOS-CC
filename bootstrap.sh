@@ -97,7 +97,8 @@ install_deps() {
 
   # System packages
   apt-get update -qq
-  apt-get install -y -qq tmux fail2ban python3 jq curl git unzip >/dev/null 2>&1
+  apt-get install -y -qq cron tmux fail2ban python3 jq curl git unzip >/dev/null 2>&1
+  systemctl enable cron --now 2>/dev/null || true
   systemctl enable fail2ban --now 2>/dev/null || true
   success "System packages installed"
 }

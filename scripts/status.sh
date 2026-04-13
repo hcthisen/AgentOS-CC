@@ -24,6 +24,7 @@ CADDY_ENABLED=$(grep '^AGENTOS_CADDY_ENABLED=' "$ENV_FILE" 2>/dev/null | cut -d=
 DASHBOARD_URL=$(grep '^AGENTOS_DASHBOARD_URL=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)
 
 check "Docker running" "systemctl is-active docker"
+check "Cron running" "systemctl is-active cron"
 check "PostgreSQL container up" "docker ps | grep -q agentos-db"
 check "PostgREST responding on :3001" "curl -sf http://localhost:3001/ | grep -q paths"
 check "Dashboard responding on :3000" "curl -sf http://localhost:3000 | grep -q html"
@@ -38,10 +39,11 @@ check "fail2ban running" "systemctl is-active fail2ban"
 AGENTOS_HOME="/home/agentos"
 if [[ -d "$AGENTOS_HOME" ]]; then
   check "Claude Code installed" "sudo -u agentos which claude"
+  check "tmux session 'claude' exists" "sudo -u agentos tmux has-session -t claude"
 else
   check "Claude Code installed" "which claude"
+  check "tmux session 'claude' exists" "tmux has-session -t claude"
 fi
-check "tmux session 'claude' exists" "tmux has-session -t claude"
 
 # Crontab
 CRON_COUNT=$(crontab -u agentos -l 2>/dev/null | grep -v '^#' | grep -c agentos || echo "0")
