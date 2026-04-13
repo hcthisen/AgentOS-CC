@@ -77,7 +77,11 @@ In no-domain mode, Caddy is intentionally skipped and the web terminal tab is di
 
 ### After install — Telegram setup
 
-The bootstrap switches you to the `agentos` user. Run `claude` and complete browser authentication first.
+The bootstrap switches you to the `agentos` user. Run this and complete browser authentication first:
+
+```bash
+claude --dangerously-skip-permissions
+```
 
 #### 1. Create a bot with BotFather
 
@@ -94,6 +98,18 @@ Inside a Claude Code session:
 
 ```
 /plugin install telegram@claude-plugins-official
+```
+
+Then leave Claude Code:
+
+```
+/exit
+```
+
+Re-enter Claude Code:
+
+```bash
+claude --dangerously-skip-permissions
 ```
 
 #### 3. Configure the token
