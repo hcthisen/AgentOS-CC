@@ -10,6 +10,7 @@ CHANNEL_FLAG="--channels plugin:telegram@claude-plugins-official"
 PROMPT_WAIT_SECONDS=12
 WORKDIR="/opt/agentos"
 SESSION_DIR="$HOME/.claude/projects/-root"
+CREDENTIALS_FILE="$HOME/.claude/.credentials.json"
 
 pane_text() {
   tmux capture-pane -t "$TMUX_SESSION" -p 2>/dev/null | tail -n 40 || true
@@ -20,6 +21,13 @@ handle_startup_prompts() {
   for i in $(seq 1 "$PROMPT_WAIT_SECONDS"); do
     local content
     content="$(pane_text)"
+
+    if echo "$content" | grep -qi "Choose the text style that looks best with your terminal"; then
+      log "Accepting theme selection prompt"
+      tmux send-keys -t "$TMUX_SESSION" Enter
+      sleep 2
+      continue
+    fi
 
     if echo "$content" | grep -q "Bypass Permissions mode"; then
       log "Accepting bypass permissions prompt"
@@ -83,28 +91,46 @@ done
 
 if [[ -n "$claude_pid" ]]; then
   pane_content="$(pane_text)"
-  if echo "$pane_content" | grep -qi "trust this folder\|Bypass Permissions mode"; then
+  if echo "$pane_content" | grep -qi "trust this folder\|Bypass Permissions mode\|Choose the text style that looks best with your terminal"; then
     log "Claude Code is waiting on a startup prompt"
     handle_startup_prompts
     pane_content="$(pane_text)"
   fi
 
-  # Claude is running — verify it has --channels in its command line
-  cmdline=$(tr '\0' ' ' < "/proc/$claude_pid/cmdline" 2>/dev/null)
-  if echo "$cmdline" | grep -q -- "--channels"; then
-    if echo "$pane_content" | grep -q "Listening for channel messages"; then
-      log "Claude Code is running with channels (confirmed via pane, PID: $claude_pid)"
+  if echo "$pane_content" | grep -q "Select login method:"; then
+    if [[ -s "$CREDENTIALS_FILE" ]]; then
+      log "Claude Code is stuck on login prompt despite saved credentials, restarting..."
+      kill "$claude_pid" 2>/dev/null || true
+      sleep 3
+      if kill -0 "$claude_pid" 2>/dev/null; then
+        kill -9 "$claude_pid" 2>/dev/null || true
+        sleep 1
+      fi
+      claude_pid=""
     else
-      log "Claude Code process is running with channels (PID: $claude_pid)"
+      log "Claude Code is waiting for initial authentication"
+      exit 0
     fi
-    exit 0
   fi
 
-  # Running without channels — need to restart
-  log "Claude Code running WITHOUT channels (PID: $claude_pid), restarting..."
-  tmux send-keys -t "$TMUX_SESSION" "/exit" Enter
-  sleep 3
-  # Fall through to start with channels
+  if [[ -n "$claude_pid" ]]; then
+    # Claude is running — verify it has --channels in its command line
+    cmdline=$(tr '\0' ' ' < "/proc/$claude_pid/cmdline" 2>/dev/null)
+    if echo "$cmdline" | grep -q -- "--channels"; then
+      if echo "$pane_content" | grep -q "Listening for channel messages"; then
+        log "Claude Code is running with channels (confirmed via pane, PID: $claude_pid)"
+      else
+        log "Claude Code process is running with channels (PID: $claude_pid)"
+      fi
+      exit 0
+    fi
+
+    # Running without channels — need to restart
+    log "Claude Code running WITHOUT channels (PID: $claude_pid), restarting..."
+    tmux send-keys -t "$TMUX_SESSION" "/exit" Enter
+    sleep 3
+    # Fall through to start with channels
+  fi
 fi
 
 # Claude not running (or was just stopped) — start with channels
